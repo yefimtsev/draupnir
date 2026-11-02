@@ -1,55 +1,73 @@
 # draupnir
 
-A CLI that keeps a markdown vault (Obsidian-friendly, plain files) as long-term memory for Claude Code.
-It writes session logs, builds a per-project brief from the recent ones, tracks learned patterns ("instincts") and a decision log, and checks the vault's health.
+Long-term memory for Claude Code, kept as plain markdown files.  
+Session logs, a per-project brief, learned patterns and a decision log live in a folder you can open in Obsidian.
 
-The binary also carries a set of Claude Code skills (`/draupnir-resume`, `/draupnir-compress`, ...) that call it.
-The skills decide what to remember; the CLI does the file work.
+Claude Code skills drive it: `/draupnir-resume` at the start of a session, `/draupnir-compress` at the end.  
+The `draupnir` CLI does the file work. It runs on macOS, Linux and Windows.
 
-Runs on macOS, Linux and Windows.
+## Install
 
-## Installation
+### With an agent
 
-**With an AI agent.** Give it this link and let it do the rest; it asks you for the vault folder and the first project:
+Give your agent this link. It asks for the vault folder and the first project, then installs and checks everything.
+
+```
 https://raw.githubusercontent.com/yefimtsev/draupnir/master/docs/agent-install.md
+```
 
-**Windows** (PowerShell, no admin rights):
+### Windows
 
 ```powershell
 irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex
 ```
 
-It asks for the vault folder, installs `draupnir.exe` to `%LOCALAPPDATA%\Programs\draupnir`, adds it to your user `PATH`, writes the config if you have none and installs the Claude Code skills.
-Restart open terminals and Claude Code afterwards: a running program keeps the `PATH` it started with.
-To uninstall: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1))) -Uninstall`.
-That removes the binary and the `PATH` entry; the config, the vault and the skills stay ([where they are](docs/agent-install.md#uninstall)).
+No admin rights needed. It asks for the vault folder and sets up `PATH`, the config and the skills.  
+Restart your terminals and Claude Code afterwards.
 
-**macOS (Apple silicon) and Linux (x86-64).** Download the file for your platform from [Releases](https://github.com/yefimtsev/draupnir/releases), rename it to `draupnir` and put it on your `PATH`.
-The binaries are not signed: run `chmod +x draupnir`, and on macOS also `xattr -d com.apple.quarantine draupnir`, or Gatekeeper refuses to start it.
-Then create the config (below) and run `draupnir skills install`.
+To uninstall (your vault, config and skills stay):
 
-**With Cargo** (any platform with a Rust toolchain; on Windows also the MSVC build tools):
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1))) -Uninstall
+```
+
+### macOS and Linux
+
+```sh
+mkdir -p ~/.local/bin
+curl -fsSL -o ~/.local/bin/draupnir \
+  https://github.com/yefimtsev/draupnir/releases/latest/download/draupnir-aarch64-apple-darwin
+chmod +x ~/.local/bin/draupnir
+draupnir skills install
+```
+
+On Linux (x86-64) download `draupnir-x86_64-unknown-linux-gnu` instead.  
+`~/.local/bin` has to be on your `PATH`. Then create the config, see below.
+
+### From source
 
 ```sh
 cargo install --git https://github.com/yefimtsev/draupnir
 ```
 
-**From a checkout:** `cargo install --path .`, or `make install` on macOS/Linux (symlinks the release build into `~/.local/bin`).
-
 ## Configuration
 
-The config is looked up in this order:
-
-1. `~/.config/draupnir/config.yaml` (on Windows: `C:\Users\<you>\.config\draupnir\config.yaml`)
-2. The platform config dir: `~/Library/Application Support/draupnir/config.yaml` on macOS, `%APPDATA%\draupnir\config.yaml` on Windows, `$XDG_CONFIG_HOME/draupnir/config.yaml` on Linux
-
-The minimum is one line:
+One line in `~/.config/draupnir/config.yaml` is enough to start:
 
 ```yaml
 vault_root: ~/Documents/Draupnir
 ```
 
-Then register projects with `draupnir project add`, or by hand:
+Then register a project:
+
+```sh
+draupnir project add acme --title Acme --repo ~/dev/acme
+```
+
+Inside `~/dev/acme`, every command now works on the `acme` project. `--project` overrides that.
+
+<details>
+<summary>Full config reference</summary>
 
 ```yaml
 vault_root: ~/Documents/Draupnir
@@ -63,68 +81,65 @@ projects:
     detect_patterns: [acme]                 # or: cwd contains this text
 ```
 
-The project is detected from the current directory unless you pass `--project`.
-The most specific match wins (the longest matching repo path or pattern), and a tie between two projects is an error rather than a guess.
-Patterns and repos may use `/` on every platform; on Windows the comparison also ignores case.
+Where the config is looked up, in order:
 
-**Windows paths in YAML:** write `C:/Users/you/Vault` or `'C:\Users\you\Vault'` (single quotes).
-Inside double quotes a backslash starts an escape sequence, so `"C:\Users\..."` breaks.
+1. `~/.config/draupnir/config.yaml`
+2. `~/Library/Application Support/draupnir/` on macOS, `%APPDATA%\draupnir\` on Windows, `$XDG_CONFIG_HOME/draupnir/` on Linux
+
+When two projects match the current directory, the longer match wins. A tie is an error.  
+Paths may use `/` on every platform, and on Windows case does not matter.
+
+On Windows, write paths as `C:/Users/you/Vault` or `'C:\Users\you\Vault'`.  
+In double quotes YAML treats `\` as an escape.
+
+</details>
 
 ## Vault layout
 
-Paths are relative to `vault_root`; folders are created when first written.
+Paths are relative to `vault_root`. Folders appear the first time something is written there.
 
 ```
-<session_logs_dir>/                    session logs, one markdown file each, with YAML frontmatter
-<project path>/product-scope.md        decision log under a "## Decision Log" heading
-<project path>/Learnings/instincts.md  instinct registry (may be split into instincts-*.md)
+<session_logs_dir>/                    session logs, one markdown file each
+<project path>/product-scope.md        decision log, under "## Decision Log"
+<project path>/Learnings/instincts.md  learned patterns
 <project path>/_generated/             session index and brief, rebuilt by the CLI
 +Inbox/                                quick captures
-CLAUDE.md                              your own notes; the resume skill reads it
+CLAUDE.md                              your own notes; /draupnir-resume reads it
 ```
 
-A log's `project:` frontmatter decides which project it belongs to; the filename is only a fallback for old logs.
-`session write` gives each log `date`, `time`, `project`, `title` (the topic as typed), `topic` (its slug) and `tags`.
-The index takes a log's title from `title:`, else its first `# heading`, else `topic:`, else the filename.
-Files with Windows (CRLF) line endings are read the same as LF.
+Each log carries frontmatter: `date`, `time`, `project`, `title`, `topic`, `tags`.  
+The `project:` field decides which project a log belongs to.
 
-## Claude Code skills
-
-```sh
-draupnir skills install
-```
-
-The Windows installer runs this for you. It copies the bundled skills into `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`).
-Skills you edited locally are left alone unless you pass `--force`.
+## Skills
 
 | Skill | What it does |
 |---|---|
-| `/draupnir-resume` | Load the brief, recent sessions and instincts at session start |
+| `/draupnir-resume` | Load the brief, recent sessions and patterns |
 | `/draupnir-compress` | Save the conversation as a session log |
-| `/draupnir-capture` | Quick-capture a note to the inbox |
-| `/draupnir-doctor` | Vault health: staleness, indexes, registry size |
+| `/draupnir-capture` | Quick note to the inbox |
+| `/draupnir-doctor` | Check the vault's health |
 | `/instinct-status` | List learned patterns |
-| `/instinct-promote` | Turn a high-confidence pattern into a rule or a skill |
+| `/instinct-promote` | Turn a pattern into a rule or a skill |
 
-The skills run `draupnir` through Claude Code's Bash tool (heredocs included).
-On Windows Claude Code runs that tool in Git Bash, so they work there unchanged.
+`draupnir skills install` copies them into `~/.claude/skills`.  
+Skills you edited are kept; `--force` overwrites them.
 
 ## Commands
 
-`draupnir --help` lists them; each has its own `--help`.
-
 | Command | Purpose |
 |---|---|
-| `session` | Write a session log from stdin, search logs |
-| `index` | Rebuild, append to and inspect a project's session index |
-| `brief` | Generate, show, check and invalidate the project brief |
-| `instincts` | Add, confirm, list and count instinct patterns |
-| `decision` | Add to, list and read the decision log |
-| `doctor` | Health checks for the vault and a project |
-| `project` | Add and list configured projects |
+| `session` | Write a session log, search logs |
+| `index` | Rebuild and inspect the session index |
+| `brief` | Generate and show the project brief |
+| `instincts` | Add, confirm and list patterns |
+| `decision` | Add to and read the decision log |
+| `doctor` | Health checks |
+| `project` | Add and list projects |
 | `capture` | Quick note to the inbox |
-| `vault` | Print the resolved vault root |
-| `skills` | Install the bundled skills |
+| `vault` | Print the vault path |
+| `skills` | Install the skills |
+
+Each command has its own `--help`.
 
 ## Development
 
@@ -134,10 +149,8 @@ cargo clippy -- -D warnings
 cargo fmt -- --check
 ```
 
-CI runs these on Linux, macOS and Windows.
-The `Makefile` assumes a Unix shell; on Windows call `cargo` directly.
-
-The Claude Code hooks in `.claude/settings.json` (format and lint after each edit) need `jq` on `PATH` and a POSIX shell, which on Windows means Git Bash.
+CI runs on Linux, macOS and Windows.  
+The `Makefile` needs a Unix shell. The Claude Code hooks in `.claude/settings.json` need `jq`.
 
 ## License
 
