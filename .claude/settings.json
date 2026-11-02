@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "command -v jq >/dev/null || { echo 'hook needs jq on PATH' >&2; exit 1; }; f=$(jq -r '.tool_input.file_path // empty' | tr '\\\\' '/'); case \"$f\" in *.rs) ;; *) exit 0;; esac; cd \"$CLAUDE_PROJECT_DIR\" && cargo fmt --quiet 2>&1 && out=$(cargo clippy --quiet -- -D warnings 2>&1) || { printf '%s\\n' \"$out\" | head -20 >&2; exit 2; }"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 60,
+            "command": "command -v jq >/dev/null || { echo 'hook needs jq on PATH' >&2; exit 1; }; f=$(jq -r '.tool_input.file_path // empty' | tr '\\\\' '/'); case \"$f\" in */Cargo.toml) ;; *) exit 0;; esac; cd \"$CLAUDE_PROJECT_DIR\" && out=$(cargo deny check 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v jq >/dev/null || { echo 'hook needs jq on PATH' >&2; exit 1; }; f=$(jq -r '.tool_input.file_path // empty' | tr '\\\\' '/'); case \"$f\" in *Documents/Draupnir*) echo 'BLOCK: do not edit the vault directly — this CLI reads the vault, it does not write to it during development' >&2; exit 2;; */Cargo.lock) echo 'BLOCK: never edit Cargo.lock directly — change Cargo.toml and let cargo resolve' >&2; exit 2;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

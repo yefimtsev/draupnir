@@ -1,0 +1,8 @@
+/target
+
+# The eval suite is a separate private repo checked out at eval/
+/eval/
+__pycache__/
+
+# Personal Claude Code notes
+/CLAUDE.local.md
