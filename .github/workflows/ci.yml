@@ -49,7 +49,7 @@ jobs:
           $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
           if (($userPath -split ';') -notcontains $dir) { throw "not on the user PATH: $userPath" }
           $root = & "$dir\draupnir.exe" vault root
-          if ($root -ne 'C:/draupnir test/vault') { throw "vault root is '$root'" }
+          if ($root.Replace('\', '/') -ne 'C:/draupnir test/vault') { throw "vault root is '$root'" }
           $home_ = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
           if (-not (Test-Path "$home_\.claude\skills\draupnir-resume\SKILL.md")) { throw 'skills not installed' }
       - name: A second run keeps the config
@@ -59,7 +59,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Get-Content ./install.ps1 -Raw | Invoke-Expression
           $root = & "$env:LOCALAPPDATA\Programs\draupnir\draupnir.exe" vault root
-          if ($root -ne 'C:/draupnir test/vault') { throw "config was overwritten: '$root'" }
+          if ($root.Replace('\', '/') -ne 'C:/draupnir test/vault') { throw "config was overwritten: '$root'" }
       - name: Warns about a copy that only the saved PATH knows
         run: |
           $ErrorActionPreference = 'Stop'
