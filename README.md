@@ -8,14 +8,27 @@ The skills decide what to remember; the CLI does the file work.
 
 Runs on macOS, Linux and Windows.
 
-## Install
+## Installation
 
-**Prebuilt binary.** Download the file for your platform from [Releases](https://github.com/yefimtsev/draupnir/releases) and put it on your `PATH` as `draupnir` (`draupnir.exe` on Windows).
-The binaries are not signed.
-On macOS and Linux run `chmod +x draupnir`; on macOS also `xattr -d com.apple.quarantine draupnir`, or Gatekeeper refuses to start it.
-On Windows, SmartScreen may warn on the first run.
+**With an AI agent.** Give it this link and let it do the rest; it asks you for the vault folder and the first project:
+https://raw.githubusercontent.com/yefimtsev/draupnir/master/docs/agent-install.md
 
-**With Cargo** (needs a Rust toolchain; on Windows also the MSVC build tools):
+**Windows** (PowerShell, no admin rights):
+
+```powershell
+irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex
+```
+
+It asks for the vault folder, installs `draupnir.exe` to `%LOCALAPPDATA%\Programs\draupnir`, adds it to your user `PATH`, writes the config if you have none and installs the Claude Code skills.
+Open a new terminal afterwards.
+To uninstall: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1))) -Uninstall`.
+The config, the vault and the skills stay in place.
+
+**macOS (Apple silicon) and Linux (x86-64).** Download the file for your platform from [Releases](https://github.com/yefimtsev/draupnir/releases), rename it to `draupnir` and put it on your `PATH`.
+The binaries are not signed: run `chmod +x draupnir`, and on macOS also `xattr -d com.apple.quarantine draupnir`, or Gatekeeper refuses to start it.
+Then create the config (below) and run `draupnir skills install`.
+
+**With Cargo** (any platform with a Rust toolchain; on Windows also the MSVC build tools):
 
 ```sh
 cargo install --git https://github.com/yefimtsev/draupnir
@@ -79,7 +92,7 @@ Files with Windows (CRLF) line endings are read the same as LF.
 draupnir skills install
 ```
 
-This copies the bundled skills into `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`).
+The Windows installer runs this for you. It copies the bundled skills into `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`).
 Skills you edited locally are left alone unless you pass `--force`.
 
 | Skill | What it does |

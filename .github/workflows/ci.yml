@@ -28,6 +28,47 @@ jobs:
       - run: cargo clippy -- -D warnings
       - run: cargo test
 
+  installer:
+    # Runs install.ps1 the way users do (piped into iex) in Windows PowerShell 5.1, against
+    # the latest published release.
+    name: Windows installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install
+        env:
+          DRAUPNIR_VAULT_ROOT: C:\draupnir test\vault
+        run: Get-Content ./install.ps1 -Raw | Invoke-Expression
+      - name: Check the install
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\draupnir'
+          $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          if (($userPath -split ';') -notcontains $dir) { throw "not on the user PATH: $userPath" }
+          $root = & "$dir\draupnir.exe" vault root
+          if ($root -ne 'C:/draupnir test/vault') { throw "vault root is '$root'" }
+          $home_ = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
+          if (-not (Test-Path "$home_\.claude\skills\draupnir-resume\SKILL.md")) { throw 'skills not installed' }
+      - name: A second run keeps the config
+        env:
+          DRAUPNIR_VAULT_ROOT: C:\elsewhere
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-Content ./install.ps1 -Raw | Invoke-Expression
+          $root = & "$env:LOCALAPPDATA\Programs\draupnir\draupnir.exe" vault root
+          if ($root -ne 'C:/draupnir test/vault') { throw "config was overwritten: '$root'" }
+      - name: Uninstall
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ([scriptblock]::Create((Get-Content ./install.ps1 -Raw))) -Uninstall
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\draupnir'
+          if (Test-Path $dir) { throw "$dir still exists" }
+          $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          if (($userPath -split ';') -contains $dir) { throw 'PATH entry left behind' }
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest
