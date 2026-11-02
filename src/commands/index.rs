@@ -175,6 +175,17 @@ pub fn stats(config: &Config, project_key: &str) -> Result<()> {
     Ok(())
 }
 
+/// Undo the quoting `session write` applies: `'it''s'` → `it's`, `"x"` → `x`.
+fn yaml_unquote(v: &str) -> String {
+    if let Some(inner) = v.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+        inner.replace("''", "'")
+    } else if let Some(inner) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+        inner.replace("\\\"", "\"")
+    } else {
+        v.to_string()
+    }
+}
+
 /// Parse a single session log file into a SessionEntry. The project comes from the log
 /// itself: frontmatter `project:` (authoritative), else the longest configured key the
 /// filename starts with after `YYYY-MM-DD-HHMM-`. Never from the caller's project.
@@ -187,8 +198,9 @@ fn parse_session_file(config: &Config, path: &Path) -> Result<SessionEntry> {
 
     let mut date = String::new();
     let mut fm_project: Option<String> = None;
+    let mut fm_title: Option<String> = None;
+    let mut fm_topic: Option<String> = None;
     let mut tags = Vec::new();
-    let mut title = String::new();
 
     // Parse frontmatter
     if let Some(fm_match) = FRONTMATTER_RE.captures(&content) {
@@ -200,6 +212,8 @@ fn parse_session_file(config: &Config, path: &Path) -> Result<SessionEntry> {
                 match key {
                     "date" => date = value.to_string(),
                     "project" => fm_project = Some(value.to_string()),
+                    "title" => fm_title = Some(yaml_unquote(value)).filter(|t| !t.is_empty()),
+                    "topic" => fm_topic = Some(value.replace('-', " ")).filter(|t| !t.is_empty()),
                     "tags" => {
                         tags = value
                             .trim_start_matches('[')
@@ -215,17 +229,17 @@ fn parse_session_file(config: &Config, path: &Path) -> Result<SessionEntry> {
         }
     }
 
-    // Find first H1 for title
-    for line in content.lines() {
-        if let Some(caps) = TITLE_RE.captures(line) {
-            title = caps[1].to_string();
-            break;
-        }
-    }
-
-    if title.is_empty() {
-        title = filename.to_string();
-    }
+    // Title: frontmatter `title:` (session write sets it), else the first H1 (older logs), else
+    // the `topic:` slug as words, else the filename.
+    let title = if let Some(t) = fm_title {
+        t
+    } else if let Some(caps) = content.lines().find_map(|l| TITLE_RE.captures(l)) {
+        caps[1].to_string()
+    } else if let Some(t) = fm_topic {
+        t
+    } else {
+        filename.to_string()
+    };
 
     let project = match fm_project {
         Some(p) => p,
@@ -309,6 +323,48 @@ mod tests {
             repos: vec![],
             detect_patterns: vec![],
         }
+    }
+
+    #[test]
+    fn title_prefers_frontmatter_then_h1_then_topic_then_filename() {
+        let vault = tempfile::tempdir().unwrap();
+        let config = Config {
+            vault_root: vault.path().to_string_lossy().to_string(),
+            session_logs_dir: "Logs".to_string(),
+            projects: [("acme".to_string(), project("P/Acme"))]
+                .into_iter()
+                .collect(),
+        };
+        let logs = vault.path().join("Logs");
+        std::fs::create_dir_all(&logs).unwrap();
+        let title = |name: &str, body: &str| {
+            let path = logs.join(name);
+            std::fs::write(&path, body).unwrap();
+            parse_session_file(&config, &path).unwrap().title
+        };
+        let fm = |extra: &str| format!("---\ndate: 2026-11-02\nproject: acme\n{extra}---\n");
+        assert_eq!(
+            title(
+                "2026-11-02-1000-acme-a.md",
+                &(fm("title: 'Fix: it''s #1'\ntopic: fix-its-1\n") + "# Old H1\n")
+            ),
+            "Fix: it's #1"
+        );
+        assert_eq!(
+            title(
+                "2026-11-02-1001-acme-b.md",
+                &(fm("topic: b\n") + "# Session: B\n")
+            ),
+            "Session: B"
+        );
+        assert_eq!(
+            title("2026-11-02-1002-acme-c.md", &fm("topic: upgrade-check\n")),
+            "upgrade check"
+        );
+        assert_eq!(
+            title("2026-11-02-1003-acme-d.md", &fm("")),
+            "2026-11-02-1003-acme-d"
+        );
     }
 
     #[test]

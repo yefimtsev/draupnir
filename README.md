@@ -84,6 +84,8 @@ CLAUDE.md                              your own notes; the resume skill reads it
 ```
 
 A log's `project:` frontmatter decides which project it belongs to; the filename is only a fallback for old logs.
+`session write` gives each log `date`, `time`, `project`, `title` (the topic as typed), `topic` (its slug) and `tags`.
+The index takes a log's title from `title:`, else its first `# heading`, else `topic:`, else the filename.
 Files with Windows (CRLF) line endings are read the same as LF.
 
 ## Claude Code skills

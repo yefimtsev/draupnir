@@ -67,10 +67,11 @@ pub fn write_session(
             )
         };
         format!(
-            "---\ndate: {}\ntime: {}\nproject: {}\ntopic: {}\ntags: {}\n---\n\n{}",
+            "---\ndate: {}\ntime: {}\nproject: {}\ntitle: {}\ntopic: {}\ntags: {}\n---\n\n{}",
             date.format("%Y-%m-%d"),
             time[..2].to_string() + ":" + &time[2..],
             project_key,
+            yaml_quote(topic),
             slug,
             tags_yaml,
             content
@@ -82,6 +83,12 @@ pub fn write_session(
 
     println!("{}", style::dim(&file_path.display().to_string()));
     Ok(file_path)
+}
+
+/// A one-line YAML single-quoted scalar: safe for `:`, `#` and quotes in a session topic.
+fn yaml_quote(s: &str) -> String {
+    let one_line = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    format!("'{}'", one_line.replace('\'', "''"))
 }
 
 /// Slugify a topic, dropping a leading project key so filenames carry it once.
@@ -164,6 +171,7 @@ pub fn search(
             // --query: case-insensitive substring on title
             if let Some(q) = query
                 && !entry.title.to_lowercase().contains(&q.to_lowercase())
+                && !entry.id.to_lowercase().contains(&q.to_lowercase())
             {
                 return false;
             }
@@ -240,6 +248,12 @@ mod tests {
         assert_eq!(topic_slug("Rocket F1 landed", "rocket"), "f1-landed");
         assert_eq!(topic_slug("rocket rocket x", "rocket"), "x");
         assert_eq!(topic_slug("Acme gate", "rocket"), "acme-gate");
+    }
+
+    #[test]
+    fn yaml_quote_keeps_punctuation_on_one_line() {
+        assert_eq!(yaml_quote("Fix: it's #1"), "'Fix: it''s #1'");
+        assert_eq!(yaml_quote("two\nlines  here"), "'two lines here'");
     }
 
     #[test]
