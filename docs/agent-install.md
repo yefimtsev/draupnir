@@ -7,6 +7,8 @@ Follow the steps in order. Do not skip the questions: the vault path and the pro
 ## 1. Look before installing
 
 Run `draupnir --version` (Windows: also `where.exe draupnir`; elsewhere `command -v draupnir`).
+On Windows also check the installer's location directly, because a Claude Code session started before an install does not see it on `PATH`:
+`Test-Path "$env:LOCALAPPDATA\Programs\draupnir\draupnir.exe"` (PowerShell) or `ls "$LOCALAPPDATA/Programs/draupnir/draupnir.exe"` (Git Bash).
 
 - **Not found:** a fresh install. Go on.
 - **Found:** draupnir is already installed. Note where. If it is not in the location step 3 installs to, two copies would end up on `PATH` and the older one may win. Tell the user and ask whether to remove the old copy first.
@@ -33,7 +35,7 @@ DRAUPNIR_VAULT_ROOT='~/Documents/Draupnir' powershell -NoProfile -ExecutionPolic
 From PowerShell:
 
 ```powershell
-$env:DRAUPNIR_VAULT_ROOT = '~/Documents/Draupnir'; irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex
+$env:DRAUPNIR_VAULT_ROOT = '~/Documents/Draupnir'; irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex; Remove-Item Env:DRAUPNIR_VAULT_ROOT
 ```
 
 Put the user's answer from step 2 in place of `~/Documents/Draupnir`.
@@ -124,7 +126,9 @@ If `doctor` says `Could not detect project from cwd`, the `--repo` path does not
 
 ## Uninstall
 
-Only when the user asks. Remove what they want gone:
+Only when the user asks.
+First run `draupnir vault root` and note the path: once the binary or the config is gone, nothing can tell you where the vault is.
+Then remove what they want gone:
 
 | What | Windows | macOS / Linux |
 |---|---|---|
@@ -133,5 +137,4 @@ Only when the user asks. Remove what they want gone:
 | Skills | `~\.claude\skills\draupnir-*` and `instinct-*` | `~/.claude/skills/draupnir-*` and `instinct-*` |
 | Vault | the folder `draupnir vault root` prints | same |
 
-Run `draupnir vault root` before removing the config, or you lose the vault path.
 The vault holds the user's notes: confirm before deleting it, and prefer moving it to the trash.

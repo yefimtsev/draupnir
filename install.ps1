@@ -47,9 +47,13 @@ param([switch]$Uninstall)
         Write-Host "Added $Dir to your user PATH."
     }
     $env:Path = "$env:Path;$Dir"
-    # The new entry goes last, so an older draupnir.exe earlier on PATH would keep winning.
-    foreach ($Other in @(Get-Command draupnir -All -CommandType Application -ErrorAction SilentlyContinue | Where-Object { $_.Source -ne $Exe })) {
-        Write-Warning "Another draupnir is on PATH at $($Other.Source) and may run instead of this one. Remove it."
+    # The new entry goes last, so an older draupnir.exe earlier on PATH would keep winning. Look at the
+    # PATH saved in the registry too: a terminal started before an install has a stale copy of it.
+    $SavedPath = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+    $Others = @("$env:Path;$SavedPath" -split ';' | Where-Object { $_ } | Sort-Object -Unique |
+        ForEach-Object { Join-Path $_ 'draupnir.exe' } | Where-Object { $_ -ne $Exe -and (Test-Path $_) })
+    foreach ($Other in $Others) {
+        Write-Warning "Another draupnir is on PATH at $Other and may run instead of this one. Remove it."
     }
 
     # Same lookup as the CLI: $HOME when set (Git Bash sets it), else the user profile; %APPDATA% second.
@@ -80,7 +84,7 @@ param([switch]$Uninstall)
     if ($LASTEXITCODE -ne 0) { Write-Warning 'Some skills were not updated; see the lines above.' }
 
     Write-Host ''
-    Write-Host "Installed $Exe"
+    Write-Host "Installed $(& $Exe --version) to $Exe"
     Write-Host 'Terminals and apps that are already open (Claude Code included) keep their old PATH:'
     Write-Host "restart them, or call `"$Exe`" by its full path until then."
     Write-Host 'Then register a project from inside its repo:'

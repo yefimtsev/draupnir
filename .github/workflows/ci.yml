@@ -60,6 +60,19 @@ jobs:
           Get-Content ./install.ps1 -Raw | Invoke-Expression
           $root = & "$env:LOCALAPPDATA\Programs\draupnir\draupnir.exe" vault root
           if ($root -ne 'C:/draupnir test/vault') { throw "config was overwritten: '$root'" }
+      - name: Warns about a copy that only the saved PATH knows
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The folder goes into the registry PATH only, like an install made after this shell started.
+          New-Item -ItemType Directory -Force C:\dupe | Out-Null
+          Copy-Item "$env:LOCALAPPDATA\Programs\draupnir\draupnir.exe" C:\dupe\draupnir.exe
+          $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+          $saved = $key.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          $key.SetValue('Path', "C:\dupe;$saved", 'ExpandString')
+          $out = Get-Content ./install.ps1 -Raw | Invoke-Expression 3>&1 | Out-String
+          $key.SetValue('Path', $saved, 'ExpandString')
+          Remove-Item C:\dupe -Recurse -Force
+          if ($out -notmatch 'Another draupnir is on PATH at C:\\dupe\\draupnir.exe') { throw "no warning in:`n$out" }
       - name: Uninstall
         run: |
           $ErrorActionPreference = 'Stop'

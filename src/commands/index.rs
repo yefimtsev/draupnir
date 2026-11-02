@@ -264,11 +264,11 @@ fn parse_session_file(config: &Config, path: &Path) -> Result<SessionEntry> {
         .into_iter()
         .collect();
 
-    // Make path relative to vault
-    let rel_path = if let Some(pos) = path.to_string_lossy().find("Areas/") {
-        path.to_string_lossy()[pos..].to_string()
-    } else {
-        path.to_string_lossy().to_string()
+    // Vault-relative with `/`, the same on every platform; a path outside the vault stays absolute.
+    let vault_root = config.resolved_vault_root()?;
+    let rel_path = match path.strip_prefix(&vault_root) {
+        Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+        Err(_) => path.to_string_lossy().to_string(),
     };
 
     // Validate date — reject entries with empty or unparseable dates
@@ -339,6 +339,19 @@ mod tests {
             "---\ndate: 2026-09-26\n---\n# Gate\n",
         )
         .unwrap();
+
+        let paths = |key: &str| -> Vec<String> {
+            rebuild_core(&config, key).unwrap();
+            let path = vault.path().join(format!(
+                "P/{}/_generated/session-index.json",
+                if key == "acme" { "Acme" } else { "Rocket" }
+            ));
+            let index: SessionIndex =
+                serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            index.sessions.into_iter().map(|s| s.path).collect()
+        };
+        // Relative to the vault with `/` separators, also on Windows.
+        assert_eq!(paths("acme"), ["Logs/2026-09-26-2110-acme-gate0.md"]);
 
         let ids = |key: &str| -> Vec<String> {
             rebuild_core(&config, key).unwrap();

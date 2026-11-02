@@ -15,12 +15,19 @@ pub fn home_dir() -> Result<PathBuf> {
 /// Expand ~ at the start of a path to the user's home directory.
 pub fn expand_tilde(path: &str) -> Result<PathBuf> {
     if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) {
-        Ok(home_dir()?.join(rest))
+        Ok(native(home_dir()?.join(rest)))
     } else if path == "~" {
         home_dir()
     } else {
-        Ok(PathBuf::from(path))
+        Ok(native(PathBuf::from(path)))
     }
+}
+
+/// Rebuild a path from its components so it uses the platform separator throughout.
+/// Config values like `Areas/Work/Projects/X` joined onto `C:\Users\...` would otherwise print
+/// as `C:\Users\x/Areas/Work`. A no-op on Unix.
+fn native(path: PathBuf) -> PathBuf {
+    path.components().collect()
 }
 
 /// Read a vault text file with line endings normalized to `\n`. Files that went through
@@ -37,19 +44,18 @@ pub fn normalize_newlines(s: &str) -> String {
 
 /// Resolve a project-relative path within the vault.
 /// E.g., "Areas/Work/Projects/Acme" → ~/Documents/Draupnir/Areas/Work/Projects/Acme
-#[allow(dead_code)]
 pub fn resolve_vault_path(vault_root: &Path, relative: &str) -> PathBuf {
-    vault_root.join(relative)
+    native(vault_root.join(relative))
 }
 
 /// Get the session logs directory for a vault.
 pub fn session_logs_dir(vault_root: &Path, session_logs_rel: &str) -> PathBuf {
-    vault_root.join(session_logs_rel)
+    native(vault_root.join(session_logs_rel))
 }
 
 /// Get the _generated directory for a project.
 pub fn generated_dir(vault_root: &Path, project_path: &str) -> PathBuf {
-    vault_root.join(project_path).join("_generated")
+    native(vault_root.join(project_path).join("_generated"))
 }
 
 /// Get the inbox directory.
@@ -59,17 +65,19 @@ pub fn inbox_dir(vault_root: &Path) -> PathBuf {
 
 /// Get the instincts file for a project.
 pub fn instincts_file(vault_root: &Path, project_path: &str) -> PathBuf {
-    vault_root
-        .join(project_path)
-        .join("Learnings")
-        .join("instincts.md")
+    native(
+        vault_root
+            .join(project_path)
+            .join("Learnings")
+            .join("instincts.md"),
+    )
 }
 
 /// Get all instinct registry files for a project: `instincts.md` plus any
 /// split category files (`instincts-*.md`) in the Learnings directory.
 /// Returns an empty vec when no registry exists at all.
 pub fn instincts_files(vault_root: &Path, project_path: &str) -> Vec<PathBuf> {
-    let learnings = vault_root.join(project_path).join("Learnings");
+    let learnings = native(vault_root.join(project_path).join("Learnings"));
     let mut files = Vec::new();
     let main = learnings.join("instincts.md");
     if main.exists() {
@@ -92,7 +100,7 @@ pub fn instincts_files(vault_root: &Path, project_path: &str) -> Vec<PathBuf> {
 
 /// Get the product-scope.md file for a project.
 pub fn product_scope_file(vault_root: &Path, project_path: &str) -> PathBuf {
-    vault_root.join(project_path).join("product-scope.md")
+    native(vault_root.join(project_path).join("product-scope.md"))
 }
 
 /// Current UTC timestamp in ISO 8601 format.
@@ -108,4 +116,18 @@ pub fn today() -> chrono::NaiveDate {
 /// Current local time as HHMM string.
 pub fn now_hhmm() -> String {
     chrono::Local::now().format("%H%M").to_string()
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn joins_use_the_platform_separator() {
+        let dir = generated_dir(Path::new(r"C:\v"), "Areas/Work/Projects/P");
+        assert_eq!(
+            dir.to_string_lossy(),
+            r"C:\v\Areas\Work\Projects\P\_generated"
+        );
+    }
 }
