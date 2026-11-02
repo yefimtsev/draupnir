@@ -16,6 +16,7 @@ use std::process;
 #[derive(Debug, Parser)]
 #[command(
     name = "draupnir",
+    version,
     about = "Draupnir vault CLI — sessions, briefs, instincts, health"
 )]
 struct Cli {

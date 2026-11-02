@@ -4,28 +4,47 @@ You are installing draupnir for the user you are working with.
 draupnir is a CLI that keeps a markdown vault as long-term memory for Claude Code, plus a set of Claude Code skills that call it.
 Follow the steps in order. Do not skip the questions: the vault path and the project names are the user's to choose.
 
-## 1. Ask the user
+## 1. Look before installing
 
-Before running anything, ask:
+Run `draupnir --version` (Windows: also `where.exe draupnir`; elsewhere `command -v draupnir`).
+
+- **Not found:** a fresh install. Go on.
+- **Found:** draupnir is already installed. Note where. If it is not in the location step 3 installs to, two copies would end up on `PATH` and the older one may win. Tell the user and ask whether to remove the old copy first.
+
+Also run `draupnir vault root` if the binary exists. If it prints a path, a config exists: keep it, and do not ask the vault question below.
+
+## 2. Ask the user
 
 1. **Where should the vault live?** Suggest `~/Documents/Draupnir`. An existing Obsidian vault works too.
+   `~` is fine on every platform, so you do not need the user's account name.
 2. **Which project should be registered first?** You need a short lowercase key (e.g. `acme`), a title (e.g. `Acme`) and the path of its repo. Offer the current repo if you are in one.
 
-If draupnir is already installed (`draupnir vault root` prints a path), the vault question is settled: do not ask it and do not touch the config.
+## 3. Install the binary
 
-## 2. Install the binary
+**Windows** (x86-64). The installer is a short PowerShell script; read it before running it if you want to know what it does:
+https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1
 
-Pick the block for the user's platform.
-
-**Windows** (x86-64). Run from Claude Code's Bash tool (Git Bash) or from PowerShell, with the vault path from step 1:
+From Claude Code's Bash tool (Git Bash):
 
 ```sh
-DRAUPNIR_VAULT_ROOT='C:/Users/<user>/Documents/Draupnir' powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex"
+DRAUPNIR_VAULT_ROOT='~/Documents/Draupnir' powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex"
 ```
 
-The script installs to `%LOCALAPPDATA%\Programs\draupnir`, adds that folder to the user `PATH`, writes the config if none exists and installs the skills.
-Steps 3 and 4 are then already done; go to step 5.
-The new `PATH` reaches new terminals only. Until then call the binary by its full path: `"$LOCALAPPDATA/Programs/draupnir/draupnir.exe"` in Git Bash.
+From PowerShell:
+
+```powershell
+$env:DRAUPNIR_VAULT_ROOT = '~/Documents/Draupnir'; irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | iex
+```
+
+Put the user's answer from step 2 in place of `~/Documents/Draupnir`.
+The script installs to `%LOCALAPPDATA%\Programs\draupnir`, adds that folder to the user `PATH`, writes the config if none exists and installs the skills. It warns if another `draupnir` is on `PATH`.
+Steps 4 and 5 are then done; go to step 6.
+
+**PATH on Windows:** a running program keeps the `PATH` it started with, and Claude Code passes its own to every shell it opens. So `draupnir` will not resolve in this session, even in a new shell, until the user restarts Claude Code.
+Until then, call it by full path:
+
+- Git Bash: `"$LOCALAPPDATA/Programs/draupnir/draupnir.exe"`
+- PowerShell: `& "$env:LOCALAPPDATA\Programs\draupnir\draupnir.exe"`
 
 **macOS on Apple silicon:**
 
@@ -47,20 +66,21 @@ chmod +x ~/.local/bin/draupnir
 
 On macOS and Linux, check that `~/.local/bin` is on `PATH` (`command -v draupnir`). If it is not, tell the user which shell profile line to add rather than editing their profile yourself.
 
-## 3. Create the config (macOS and Linux)
+## 4. Create the config (macOS and Linux)
 
 Run `draupnir vault root`.
 
 - It prints a path: a config exists. Leave it alone.
-- It fails with `Config file not found at <path>`: create that file with one line, using the vault path from step 1:
+- It fails with `Config file not found at <path>`: create that file with one line, using the vault path from step 2:
 
 ```yaml
 vault_root: '~/Documents/Draupnir'
 ```
 
-Use single quotes. On Windows paths use `/`, not `\`.
+When you write the file by hand, use single quotes: inside double quotes YAML reads `\` as an escape.
+`draupnir project add` rewrites the file later in its own style (no quotes, paths as given). That is fine.
 
-## 4. Install the skills (macOS and Linux)
+## 5. Install the skills (macOS and Linux)
 
 ```sh
 draupnir skills install
@@ -69,18 +89,19 @@ draupnir skills install
 It copies the skills into `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`).
 If it reports a skill as "locally modified, skipped", the user has edited that skill. Tell them, and pass `--force` only if they agree.
 
-## 5. Register the project
+## 6. Register the project
 
-From step 1's answers:
+From step 2's answers:
 
 ```sh
 draupnir project add <key> --title "<Title>" --repo <path to the repo>
 ```
 
 `--repo` is how draupnir recognises the project later: any directory inside that path resolves to this key.
+On Windows `C:\dev\acme`, `C:/dev/acme` and `~/dev/acme` all work; the comparison ignores slashes and case.
 Add `--detect <text>` for a pattern that should match too, for example a folder name shared by several clones.
 
-## 6. Check
+## 7. Check
 
 Run these from inside the project's repo:
 
@@ -89,14 +110,28 @@ draupnir doctor --fix
 draupnir doctor
 ```
 
-On a fresh vault the second run reports `0 errors, 3 warning(s)`: no brief yet, no instincts file yet, no inbox yet.
-These fill in as the user works. Any error is a real problem: show it to the user.
+The second run should report `0 error(s)`.
+On a fresh vault it also warns that the instincts file and the inbox do not exist yet (older versions add a third warning about the brief). These appear as the user works; they are not problems.
+`--fix` builds the empty session index, so the first run may show `[FIXED]`. Any error after `--fix` is a real problem: show it to the user.
 
 If `doctor` says `Could not detect project from cwd`, the `--repo` path does not match the current directory. Compare the two (symlinked folders are a common cause) and fix it with the user.
 
-## 7. Tell the user
+## 8. Tell the user
 
-- Where the binary and the config are, and the vault path.
+- Where the binary and the config are, the vault path, and the version (`draupnir --version`).
 - The skills: `/draupnir-resume` at the start of a session, `/draupnir-compress` at the end, `/draupnir-capture` for quick notes.
-- Skills are loaded when a Claude Code session starts, so they appear in the next session.
-- Uninstall on Windows: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1))) -Uninstall` in PowerShell. Elsewhere: delete `~/.local/bin/draupnir`. The config, the vault and the skills stay in place either way.
+- Restart Claude Code: skills load at startup, and on Windows that also picks up the new `PATH`.
+
+## Uninstall
+
+Only when the user asks. Remove what they want gone:
+
+| What | Windows | macOS / Linux |
+|---|---|---|
+| Binary and PATH entry | `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1))) -Uninstall` | `rm ~/.local/bin/draupnir` |
+| Config | `~\.config\draupnir\config.yaml` or `%APPDATA%\draupnir\config.yaml` | `~/.config/draupnir/config.yaml` |
+| Skills | `~\.claude\skills\draupnir-*` and `instinct-*` | `~/.claude/skills/draupnir-*` and `instinct-*` |
+| Vault | the folder `draupnir vault root` prints | same |
+
+Run `draupnir vault root` before removing the config, or you lose the vault path.
+The vault holds the user's notes: confirm before deleting it, and prefer moving it to the trash.

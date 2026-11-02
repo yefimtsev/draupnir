@@ -161,8 +161,17 @@ pub fn run(config: &Config, project_key: &str, fix: bool, json: bool) -> Result<
     }
 
     // ── Brief ────────────────────────────────────────────────────────────────
+    let no_sessions = std::fs::read_to_string(&index_path)
+        .ok()
+        .and_then(|c| serde_json::from_str::<SessionIndex>(&c).ok())
+        .is_some_and(|idx| idx.sessions.is_empty());
     if !brief_meta_path.exists() {
-        let check = if fix {
+        let check = if no_sessions {
+            Check::ok(
+                "brief",
+                "No sessions yet; the first session log starts the brief",
+            )
+        } else if fix {
             match brief::generate_core(config, project_key, None) {
                 Ok(_) => Check::ok("brief", "Generated fresh brief").with_action(Action::Fixed),
                 Err(e) => Check::warn("brief", format!("Auto-generate failed: {e}"))

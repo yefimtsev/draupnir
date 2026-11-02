@@ -47,6 +47,10 @@ param([switch]$Uninstall)
         Write-Host "Added $Dir to your user PATH."
     }
     $env:Path = "$env:Path;$Dir"
+    # The new entry goes last, so an older draupnir.exe earlier on PATH would keep winning.
+    foreach ($Other in @(Get-Command draupnir -All -CommandType Application -ErrorAction SilentlyContinue | Where-Object { $_.Source -ne $Exe })) {
+        Write-Warning "Another draupnir is on PATH at $($Other.Source) and may run instead of this one. Remove it."
+    }
 
     # Same lookup as the CLI: $HOME when set (Git Bash sets it), else the user profile; %APPDATA% second.
     $HomeDir = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
@@ -77,6 +81,8 @@ param([switch]$Uninstall)
 
     Write-Host ''
     Write-Host "Installed $Exe"
-    Write-Host 'Open a new terminal, then register a project from inside its repo:'
+    Write-Host 'Terminals and apps that are already open (Claude Code included) keep their old PATH:'
+    Write-Host "restart them, or call `"$Exe`" by its full path until then."
+    Write-Host 'Then register a project from inside its repo:'
     Write-Host '  draupnir project add <key> --title "<Title>" --repo <path to the repo>'
 }

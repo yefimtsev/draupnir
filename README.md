@@ -20,9 +20,9 @@ irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1 | ie
 ```
 
 It asks for the vault folder, installs `draupnir.exe` to `%LOCALAPPDATA%\Programs\draupnir`, adds it to your user `PATH`, writes the config if you have none and installs the Claude Code skills.
-Open a new terminal afterwards.
+Restart open terminals and Claude Code afterwards: a running program keeps the `PATH` it started with.
 To uninstall: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/yefimtsev/draupnir/master/install.ps1))) -Uninstall`.
-The config, the vault and the skills stay in place.
+That removes the binary and the `PATH` entry; the config, the vault and the skills stay ([where they are](docs/agent-install.md#uninstall)).
 
 **macOS (Apple silicon) and Linux (x86-64).** Download the file for your platform from [Releases](https://github.com/yefimtsev/draupnir/releases), rename it to `draupnir` and put it on your `PATH`.
 The binaries are not signed: run `chmod +x draupnir`, and on macOS also `xattr -d com.apple.quarantine draupnir`, or Gatekeeper refuses to start it.
