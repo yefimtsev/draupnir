@@ -50,8 +50,13 @@ param([switch]$Uninstall)
     # The new entry goes last, so an older draupnir.exe earlier on PATH would keep winning. Look at the
     # PATH saved in the registry too: a terminal started before an install has a stale copy of it.
     $SavedPath = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
-    $Others = @("$env:Path;$SavedPath" -split ';' | Where-Object { $_ } | Sort-Object -Unique |
-        ForEach-Object { Join-Path $_ 'draupnir.exe' } | Where-Object { $_ -ne $Exe -and (Test-Path $_) })
+    # Real PATHs hold junk other installers left behind, like `C:\Program Files\X"`. Windows skips
+    # it, so this check does too: strip quotes, drop what is not a valid path, never stop the install.
+    $BadChars = [IO.Path]::GetInvalidPathChars()
+    $Others = @("$env:Path;$SavedPath" -split ';' | ForEach-Object { $_.Trim().Trim('"') } |
+        Where-Object { $_ -and $_.IndexOfAny($BadChars) -lt 0 } | Sort-Object -Unique |
+        ForEach-Object { Join-Path $_ 'draupnir.exe' } |
+        Where-Object { $_ -ne $Exe -and (Test-Path -LiteralPath $_ -ErrorAction SilentlyContinue) })
     foreach ($Other in $Others) {
         Write-Warning "Another draupnir is on PATH at $Other and may run instead of this one. Remove it."
     }

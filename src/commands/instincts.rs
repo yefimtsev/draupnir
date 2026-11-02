@@ -28,7 +28,7 @@ pub fn add(config: &Config, project_key: &str, category: &str, title: &str) -> R
     std::io::stdin()
         .read_to_string(&mut description)
         .context("Reading instinct content from stdin")?;
-    let description = vault::normalize_newlines(&description);
+    let description = vault::normalize_text(&description);
 
     if description.trim().is_empty() {
         anyhow::bail!("No content received on stdin. Pipe the instinct description.");

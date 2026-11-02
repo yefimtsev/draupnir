@@ -30,16 +30,18 @@ fn native(path: PathBuf) -> PathBuf {
     path.components().collect()
 }
 
-/// Read a vault text file with line endings normalized to `\n`. Files that went through
-/// git with `autocrlf` or a Windows editor arrive as CRLF, and the frontmatter and section
-/// parsers match on `\n---`.
+/// Read a vault text file through `normalize_text`.
 pub fn read_text(path: &Path) -> std::io::Result<String> {
-    std::fs::read_to_string(path).map(|s| normalize_newlines(&s))
+    std::fs::read_to_string(path).map(|s| normalize_text(&s))
 }
 
-/// Turn CRLF into LF; used for vault files and for text piped in on stdin.
-pub fn normalize_newlines(s: &str) -> String {
-    s.replace("\r\n", "\n")
+/// Drop a leading UTF-8 BOM and turn CRLF into LF; used for vault files, the config and stdin.
+/// Windows hands us both: Notepad and git `autocrlf` write CRLF, PowerShell 5.1 prefixes text
+/// piped to a program with a BOM. Either one hides frontmatter from the `^---\n` parsers.
+pub fn normalize_text(s: &str) -> String {
+    s.strip_prefix('\u{feff}')
+        .unwrap_or(s)
+        .replace("\r\n", "\n")
 }
 
 /// Resolve a project-relative path within the vault.
@@ -118,10 +120,20 @@ pub fn now_hhmm() -> String {
     chrono::Local::now().format("%H%M").to_string()
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn normalize_text_drops_bom_and_crlf() {
+        assert_eq!(
+            normalize_text("\u{feff}---\r\na: 1\r\n---\r\n"),
+            "---\na: 1\n---\n"
+        );
+        assert_eq!(normalize_text("x\u{feff}y\n"), "x\u{feff}y\n"); // only a leading BOM
+    }
+
+    #[cfg(windows)]
     #[test]
     fn joins_use_the_platform_separator() {
         let dir = generated_dir(Path::new(r"C:\v"), "Areas/Work/Projects/P");

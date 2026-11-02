@@ -326,11 +326,11 @@ mod tests {
         };
         let logs = vault.path().join("Logs");
         std::fs::create_dir_all(&logs).unwrap();
-        // Filename says acme, frontmatter says rocket: frontmatter wins. CRLF on purpose:
-        // a Windows checkout or editor must not hide the frontmatter.
+        // Filename says acme, frontmatter says rocket: frontmatter wins. BOM and CRLF on purpose:
+        // a Windows editor or checkout must not hide the frontmatter.
         std::fs::write(
             logs.join("2026-10-10-1150-acme-rocket-clock.md"),
-            "---\r\ndate: 2026-10-10\r\nproject: rocket\r\n---\r\n# Clock\r\n",
+            "\u{feff}---\r\ndate: 2026-10-10\r\nproject: rocket\r\n---\r\n# Clock\r\n",
         )
         .unwrap();
         // No frontmatter project: filename decides.

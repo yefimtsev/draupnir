@@ -29,7 +29,7 @@ pub fn write_session(
     std::io::stdin()
         .read_to_string(&mut content)
         .context("Reading session content from stdin")?;
-    let content = vault::normalize_newlines(&content);
+    let content = vault::normalize_text(&content);
 
     if content.trim().is_empty() {
         anyhow::bail!("No content received on stdin. Pipe session log content.");
